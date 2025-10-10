@@ -101,7 +101,7 @@ def search_time_num_battles_standard_battle(battle):
         or (battle.opponent.active.hp > 0 and opponent_active_num_moves == 0)
         or opponent_active_num_moves < 3
     ):
-        num_battles_multiplier = 1 if in_time_pressure else 9
+        num_battles_multiplier = 1 if in_time_pressure else 2
         return FoulPlayConfig.parallelism * num_battles_multiplier, int(
             FoulPlayConfig.search_time_ms
         )
