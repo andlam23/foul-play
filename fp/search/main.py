@@ -16,7 +16,7 @@ from fp.search.poke_engine_helpers import battle_to_poke_engine_state
 logger = logging.getLogger(__name__)
 
 
-def select_move_from_mcts_results(mcts_results: list[(MctsResult, float, int)]) -> str:
+def select_move_from_mcts_results(mcts_results: list[(MctsResult, float, int)], is_first_move: bool = False) -> str:
     final_policy = {}
     for mcts_result, sample_chance, index in mcts_results:
         this_policy = max(mcts_result.side_one, key=lambda x: x.visits)
@@ -35,6 +35,19 @@ def select_move_from_mcts_results(mcts_results: list[(MctsResult, float, int)]) 
             ) + (sample_chance * (s1_option.visits / mcts_result.total_visits))
 
     final_policy = sorted(final_policy.items(), key=lambda x: x[1], reverse=True)
+
+    # Check if this is the first move and if hazards are available
+    if is_first_move:
+        hazard_moves = ["stealthrock", "spikes"]
+        available_hazards = [(move_name, score) for move_name, score in final_policy 
+                            if move_name.lower() in hazard_moves]
+        
+        if available_hazards:
+            # Choose the hazard move with the higher score
+            best_hazard = max(available_hazards, key=lambda x: x[1])
+            logger.info("First move - prioritizing hazard move:")
+            logger.info(f"\t{round(best_hazard[1] * 100, 3)}%: {best_hazard[0]}")
+            return best_hazard[0]
 
     # Select the top move
     logger.info("Top Choice:")
@@ -136,6 +149,7 @@ def find_best_move(battle: Battle) -> str:
             futures.append((fut, chance, index))
 
     mcts_results = [(fut.result(), chance, index) for (fut, chance, index) in futures]
-    choice = select_move_from_mcts_results(mcts_results)
+    is_first_move = battle.turn == 1
+    choice = select_move_from_mcts_results(mcts_results, is_first_move)
     logger.info("Choice: {}".format(choice))
     return choice
