@@ -100,33 +100,24 @@ async def handle_team_preview(battle, ps_websocket_client):
     battle_copy.opponent.active = Pokemon.get_dummy()
     battle_copy.team_preview = True
 
-    # best_move = await async_pick_move(battle_copy)
+    best_move = await async_pick_move(battle_copy)
 
-    # # because we copied the battle before sending it in, we need to update the last selected move here
-    # pkmn_name = battle.user.reserve[int(best_move[0].split()[1]) - 1].name
-    # battle.user.last_selected_move = LastUsedMove(
-    #     "teampreview", "switch {}".format(pkmn_name), battle.turn
-    # )
-
-    # size_of_team = len(battle.user.reserve) + 1
-    # team_list_indexes = list(range(1, size_of_team))
-    # choice_digit = int(best_move[0].split()[-1])
-
-    # team_list_indexes.remove(choice_digit)
-    # message = [
-    #     "/team {}{}|{}".format(
-    #         choice_digit, "".join(str(x) for x in team_list_indexes), battle.rqid
-    #     )
-    # ]
-
-    # Hardcoded to always choose position 1 (Ting-Lu)
-    choice_digit = 1
-    pkmn_name = battle.user.reserve[choice_digit - 1].name
+    # because we copied the battle before sending it in, we need to update the last selected move here
+    pkmn_name = battle.user.reserve[int(best_move[0].split()[1]) - 1].name
     battle.user.last_selected_move = LastUsedMove(
         "teampreview", "switch {}".format(pkmn_name), battle.turn
     )
 
-    message = ["/team 123456|{}".format(battle.rqid)]
+    size_of_team = len(battle.user.reserve) + 1
+    team_list_indexes = list(range(1, size_of_team))
+    choice_digit = int(best_move[0].split()[-1])
+
+    team_list_indexes.remove(choice_digit)
+    message = [
+        "/team {}{}|{}".format(
+            choice_digit, "".join(str(x) for x in team_list_indexes), battle.rqid
+        )
+    ]
 
     await ps_websocket_client.send_message(battle.battle_tag, message)
 
