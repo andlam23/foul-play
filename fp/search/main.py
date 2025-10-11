@@ -81,14 +81,20 @@ def search_time_num_battles_randombattles(battle):
 
 def search_time_num_battles_standard_battle(battle):
     opponent_active_num_moves = len(battle.opponent.active.moves)
-    in_time_pressure = battle.time_remaining is not None and battle.time_remaining <= 60
+
+    default_num_battles_multiplier = 6
+    time_limit = ((FoulPlayConfig.search_time_ms / 1000) * default_num_battles_multiplier) * 2 + 10
+
+    in_time_pressure = (
+        battle.time_remaining is not None and battle.time_remaining <= time_limit
+    )
 
     if (
         battle.team_preview
         or (battle.opponent.active.hp > 0 and opponent_active_num_moves == 0)
         or opponent_active_num_moves < 3
     ):
-        num_battles_multiplier = 1 if in_time_pressure else 2
+        num_battles_multiplier = 1 if in_time_pressure else default_num_battles_multiplier
         return FoulPlayConfig.parallelism * num_battles_multiplier, int(
             FoulPlayConfig.search_time_ms
         )
@@ -124,6 +130,7 @@ def find_best_move(battle: Battle) -> str:
     logger.info(
         "Sampling {} battles at {}ms each".format(num_battles, search_time_per_battle)
     )
+    logger.info(f"Time remaining: {battle.time_remaining}")
     with ProcessPoolExecutor(max_workers=FoulPlayConfig.parallelism) as executor:
         futures = []
         for index, (b, chance) in enumerate(battles):
