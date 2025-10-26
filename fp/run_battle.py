@@ -102,7 +102,7 @@ async def handle_team_preview(battle, ps_websocket_client):
 
     best_move = await async_pick_move(battle_copy)
 
-    # Because we copied the battle before sending it in, we need to update the last selected move here
+    # because we copied the battle before sending it in, we need to update the last selected move here
     pkmn_name = battle.user.reserve[int(best_move[0].split()[1]) - 1].name
     battle.user.last_selected_move = LastUsedMove(
         "teampreview", "switch {}".format(pkmn_name), battle.turn
@@ -110,14 +110,9 @@ async def handle_team_preview(battle, ps_websocket_client):
 
     size_of_team = len(battle.user.reserve) + 1
     team_list_indexes = list(range(1, size_of_team))
+    choice_digit = int(best_move[0].split()[-1])
 
-    # Force the choice digit to always be 1
-    choice_digit = 1
-
-    # Remove 1 from the remaining indexes for proper ordering
-    if choice_digit in team_list_indexes:
-        team_list_indexes.remove(choice_digit)
-
+    team_list_indexes.remove(choice_digit)
     message = [
         "/team {}{}|{}".format(
             choice_digit, "".join(str(x) for x in team_list_indexes), battle.rqid
@@ -125,7 +120,6 @@ async def handle_team_preview(battle, ps_websocket_client):
     ]
 
     await ps_websocket_client.send_message(battle.battle_tag, message)
-
 
 
 async def get_battle_tag_and_opponent(ps_websocket_client: PSWebsocketClient):
