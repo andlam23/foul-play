@@ -58,25 +58,33 @@ def search_time_num_battles_randombattles(battle):
         revealed_pkmn += 1
 
     opponent_active_num_moves = len(battle.opponent.active.moves)
-    in_time_pressure = battle.time_remaining is not None and battle.time_remaining <= 60
+    
+    # Calculate default configuration
+    default_num_battles_multiplier = 6
+    search_time_per_battle = FoulPlayConfig.search_time_ms
+    
+    # Calculate time pressure threshold
+    time_limit = ((search_time_per_battle / 1000) * default_num_battles_multiplier) * 2 + 15
+    in_time_pressure = (
+        battle.time_remaining is not None and battle.time_remaining <= time_limit
+    )
 
-    # it is still quite early in the battle and the pkmn in front of us
-    # hasn't revealed any moves: search a lot of battles shallowly
-    if (
-        revealed_pkmn <= 3
-        and battle.opponent.active.hp > 0
-        and opponent_active_num_moves == 0
-    ):
-        num_battles_multiplier = 2 if in_time_pressure else 4
-        return FoulPlayConfig.parallelism * num_battles_multiplier, int(
-            FoulPlayConfig.search_time_ms // 2
-        )
-
+    # Determine number of battles based on game state
+    if opponent_active_num_moves == 0:
+        # No moves shown: default to 60 battles
+        num_battles_multiplier = 1 if in_time_pressure else default_num_battles_multiplier
+    elif revealed_pkmn <= 1:
+        # 1 move shown but only 1 Pokémon revealed: 60 battles
+        num_battles_multiplier = 1 if in_time_pressure else default_num_battles_multiplier
     else:
-        num_battles_multiplier = 1 if in_time_pressure else 2
-        return FoulPlayConfig.parallelism * num_battles_multiplier, int(
-            FoulPlayConfig.search_time_ms
-        )
+        # 2-6 Pokémon revealed: scale down proportionally
+        # 2 revealed -> 60, 3 -> 50, 4 -> 40, 5 -> 30, 6 -> 20
+        scaled_multiplier = int(((7 - revealed_pkmn) / 5) * default_num_battles_multiplier)
+        # Round up to nearest 10, then divide by parallelism
+        scaled_multiplier = max(2, ((scaled_multiplier * FoulPlayConfig.parallelism + 9) // 10) * 10 // FoulPlayConfig.parallelism)
+        num_battles_multiplier = 1 if in_time_pressure else scaled_multiplier
+
+    return FoulPlayConfig.parallelism * num_battles_multiplier, search_time_per_battle
 
 
 def search_time_num_battles_standard_battle(battle):
