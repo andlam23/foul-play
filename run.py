@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import traceback
+import random
 from copy import deepcopy
 
 from config import FoulPlayConfig, init_logging, BotModes
@@ -64,9 +65,17 @@ async def run_foul_play():
     losses = 0
     team_file_name = "None"
     team_dict = None
+    
+    # Define the pool of teams to randomly choose from
+    team_pool = ["gen9/ou/1", "gen9/ou/2", "gen9/ou/3", "gen9/ou/4", "gen9/ou/5"]
+    
     while True:
         if FoulPlayConfig.requires_team():
-            team_packed, team_dict, team_file_name = load_team(FoulPlayConfig.team_name)
+            # Randomly select a team from the pool
+            selected_team = random.choice(team_pool)
+            logger.info(f"Selected team: {selected_team}")
+            
+            team_packed, team_dict, team_file_name = load_team(selected_team)
             await ps_websocket_client.update_team(team_packed)
         else:
             await ps_websocket_client.update_team("None")
