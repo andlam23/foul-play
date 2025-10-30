@@ -67,7 +67,7 @@ async def run_foul_play():
     team_dict = None
     
     # Define the pool of teams to randomly choose from
-    team_pool = ["gen9/ou/1", "gen9/ou/2", "gen9/ou/3", "gen9/ou/4", "gen9/ou/5"]
+    team_pool = ["gen9/ou/1"]
     
     while True:
         if FoulPlayConfig.requires_team():
