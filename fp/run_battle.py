@@ -3,6 +3,9 @@ import asyncio
 import concurrent.futures
 from copy import deepcopy
 import logging
+import time
+import threading
+from pynput import keyboard
 
 from data.pkmn_sets import RandomBattleTeamDatasets, TeamDatasets
 from data.pkmn_sets import SmogonSets
@@ -17,6 +20,50 @@ from fp.search.main import find_best_move
 from fp.websocket_client import PSWebsocketClient
 
 logger = logging.getLogger(__name__)
+
+
+class AutoMoveToggle:
+    """Handles toggling of automatic move sending with double-backslash press"""
+    
+    def __init__(self):
+        self.enabled = True
+        self.last_press_time = 0
+        self.press_timeout = 3.0  # seconds
+        self.listener = None
+        self._start_listener()
+    
+    def _start_listener(self):
+        """Start keyboard listener in background thread"""
+        def on_press(key):
+            try:
+                if key.char == '\\':
+                    current_time = time.time()
+                    if current_time - self.last_press_time <= self.press_timeout:
+                        # Double press detected
+                        self.enabled = not self.enabled
+                        status = "ENABLED" if self.enabled else "DISABLED"
+                        print("\n" + "="*80)
+                        print(f"AUTO-MOVE SENDING {status}".center(80))
+                        print("="*80 + "\n")
+                        logger.info(f"Auto-move sending {status}")
+                        self.last_press_time = 0  # Reset to prevent triple press
+                    else:
+                        self.last_press_time = current_time
+            except AttributeError:
+                pass
+        
+        self.listener = keyboard.Listener(on_press=on_press)
+        self.listener.daemon = True
+        self.listener.start()
+    
+    def stop(self):
+        """Stop the keyboard listener"""
+        if self.listener:
+            self.listener.stop()
+
+
+# Global toggle instance
+auto_move_toggle = AutoMoveToggle()
 
 
 def format_decision(battle, decision):
@@ -94,6 +141,18 @@ async def async_pick_move(battle):
     return format_decision(battle_copy, best_move)
 
 
+async def send_move_if_enabled(ps_websocket_client, battle_tag, best_move):
+    """Send move only if auto-move is enabled"""
+    if auto_move_toggle.enabled:
+        await ps_websocket_client.send_message(battle_tag, best_move)
+    else:
+        print("\n" + "-"*80)
+        print("AUTO-MOVE DISABLED - Move not sent automatically".center(80))
+        print(f"Selected move: {best_move[0]}".center(80))
+        print("Press \\\\ twice to re-enable auto-move sending".center(80))
+        print("-"*80 + "\n")
+
+
 async def handle_team_preview(battle, ps_websocket_client):
     battle_copy = deepcopy(battle)
     battle_copy.user.active = Pokemon.get_dummy()
@@ -119,7 +178,7 @@ async def handle_team_preview(battle, ps_websocket_client):
         )
     ]
 
-    await ps_websocket_client.send_message(battle.battle_tag, message)
+    await send_move_if_enabled(ps_websocket_client, battle.battle_tag, message)
 
 
 async def get_battle_tag_and_opponent(ps_websocket_client: PSWebsocketClient):
@@ -208,7 +267,7 @@ async def start_random_battle(
     process_battle_updates(battle)
 
     best_move = await async_pick_move(battle)
-    await ps_websocket_client.send_message(battle.battle_tag, best_move)
+    await send_move_if_enabled(ps_websocket_client, battle.battle_tag, best_move)
 
     return battle
 
@@ -253,7 +312,7 @@ async def start_standard_battle(
         process_battle_updates(battle)
 
         best_move = await async_pick_move(battle)
-        await ps_websocket_client.send_message(battle.battle_tag, best_move)
+        await send_move_if_enabled(ps_websocket_client, battle.battle_tag, best_move)
 
     else:
         while constants.START_TEAM_PREVIEW not in msg:
@@ -339,4 +398,4 @@ async def pokemon_battle(ps_websocket_client, pokemon_battle_type, team_dict):
             action_required = await async_update_battle(battle, msg)
             if action_required and not battle.wait:
                 best_move = await async_pick_move(battle)
-                await ps_websocket_client.send_message(battle.battle_tag, best_move)
+                await send_move_if_enabled(ps_websocket_client, battle.battle_tag, best_move)
