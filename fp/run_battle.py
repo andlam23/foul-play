@@ -62,8 +62,49 @@ class AutoMoveToggle:
             self.listener.stop()
 
 
-# Global toggle instance
+class BattleFinishToggle:
+    """Handles toggling of battle finish detection with double-s press"""
+    
+    def __init__(self):
+        self.enabled = True
+        self.last_press_time = 0
+        self.press_timeout = 3.0  # seconds
+        self.listener = None
+        self._start_listener()
+    
+    def _start_listener(self):
+        """Start keyboard listener in background thread"""
+        def on_press(key):
+            try:
+                if key.char == 's':
+                    current_time = time.time()
+                    if current_time - self.last_press_time <= self.press_timeout:
+                        # Double press detected
+                        self.enabled = not self.enabled
+                        status = "ENABLED" if self.enabled else "DISABLED"
+                        print("\n" + "="*80)
+                        print(f"BATTLE FINISH CHECK {status}".center(80))
+                        print("="*80 + "\n")
+                        logger.info(f"Battle finish check {status}")
+                        self.last_press_time = 0  # Reset to prevent triple press
+                    else:
+                        self.last_press_time = current_time
+            except AttributeError:
+                pass
+        
+        self.listener = keyboard.Listener(on_press=on_press)
+        self.listener.daemon = True
+        self.listener.start()
+    
+    def stop(self):
+        """Stop the keyboard listener"""
+        if self.listener:
+            self.listener.stop()
+
+
+# Global toggle instances
 auto_move_toggle = AutoMoveToggle()
+battle_finish_toggle = BattleFinishToggle()
 
 
 def format_decision(battle, decision):
@@ -379,7 +420,7 @@ async def pokemon_battle(ps_websocket_client, pokemon_battle_type, team_dict):
     battle = await start_battle(ps_websocket_client, pokemon_battle_type, team_dict)
     while True:
         msg = await ps_websocket_client.receive_message()
-        if battle_is_finished(battle.battle_tag, msg):
+        if battle_finish_toggle.enabled and battle_is_finished(battle.battle_tag, msg):
             winner = (
                 msg.split(constants.WIN_STRING)[-1].split("\n")[0].strip()
                 if constants.WIN_STRING in msg
@@ -394,6 +435,13 @@ async def pokemon_battle(ps_websocket_client, pokemon_battle_type, team_dict):
                 await ps_websocket_client.save_replay(battle.battle_tag)
             await ps_websocket_client.leave_battle(battle.battle_tag)
             return winner
+        elif not battle_finish_toggle.enabled and battle_is_finished(battle.battle_tag, msg):
+            print("\n" + "-"*80)
+            print("BATTLE FINISH DETECTED BUT IGNORED".center(80))
+            print("Battle finish check is disabled - continuing battle loop".center(80))
+            print("Press 'ss' twice to re-enable battle finish check".center(80))
+            print("-"*80 + "\n")
+            logger.info("Battle finish detected but ignored (toggle disabled)")
         else:
             action_required = await async_update_battle(battle, msg)
             if action_required and not battle.wait:
