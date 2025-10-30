@@ -18,17 +18,34 @@ logger = logging.getLogger(__name__)
 
 def select_move_from_mcts_results(mcts_results: list[(MctsResult, float, int)]) -> str:
     final_policy = {}
+    
+    # Print header
+    print("\n" + "="*80)
+    print("MCTS SEARCH RESULTS".center(80))
+    print("="*80 + "\n")
+    
+    # Print individual policy results
     for mcts_result, sample_chance, index in mcts_results:
         this_policy = max(mcts_result.side_one, key=lambda x: x.visits)
+        visit_pct = round(100 * this_policy.visits / mcts_result.total_visits, 2)
+        avg_score = round(this_policy.total_score / this_policy.visits, 3)
+        sample_mult = round(sample_chance, 3)
+        
+        print(f"Policy #{index}:")
+        print(f"  Move: {this_policy.move_choice}")
+        print(f"  Visits: {visit_pct}% | Avg Score: {avg_score} | Sample Weight: {sample_mult}")
+        print()
+        
         logger.info(
             "Policy {}: {} visited {}% avg_score={} sample_chance_multiplier={}".format(
                 index,
                 this_policy.move_choice,
-                round(100 * this_policy.visits / mcts_result.total_visits, 2),
-                round(this_policy.total_score / this_policy.visits, 3),
-                round(sample_chance, 3),
+                visit_pct,
+                avg_score,
+                sample_mult,
             )
         )
+        
         for s1_option in mcts_result.side_one:
             final_policy[s1_option.move_choice] = final_policy.get(
                 s1_option.move_choice, 0
@@ -36,7 +53,20 @@ def select_move_from_mcts_results(mcts_results: list[(MctsResult, float, int)]) 
 
     final_policy = sorted(final_policy.items(), key=lambda x: x[1], reverse=True)
 
-    # Select the top move
+    # Print final aggregated results
+    print("-"*80)
+    print("AGGREGATED MOVE RANKINGS".center(80))
+    print("-"*80 + "\n")
+    
+    for rank, (move, score) in enumerate(final_policy[:5], 1):  # Show top 5
+        bar_length = int(score * 50)  # Scale to 50 chars max
+        bar = "█" * bar_length
+        print(f"{rank}. {move:<30} {score*100:>6.2f}% {bar}")
+    
+    print("\n" + "="*80)
+    print(f"SELECTED MOVE: {final_policy[0][0]}".center(80))
+    print("="*80 + "\n")
+
     logger.info("Top Choice:")
     logger.info(f"\t{round(final_policy[0][1] * 100, 3)}%: {final_policy[0][0]}")
 
@@ -90,7 +120,7 @@ def search_time_num_battles_randombattles(battle):
 def search_time_num_battles_standard_battle(battle):
     opponent_active_num_moves = len(battle.opponent.active.moves)
 
-    default_num_battles_multiplier = 6
+    default_num_battles_multiplier = 1
     time_limit = ((FoulPlayConfig.search_time_ms / 1000) * default_num_battles_multiplier) * 2 + 15
 
     in_time_pressure = (
@@ -134,11 +164,18 @@ def find_best_move(battle: Battle) -> str:
     else:
         raise ValueError("Unsupported battle type: {}".format(battle.battle_type))
 
+    print("\n" + "="*80)
+    print("STARTING MCTS SEARCH".center(80))
+    print("="*80)
+    print(f"Battles: {num_battles} | Time per battle: {search_time_per_battle}ms | Time remaining: {battle.time_remaining}s")
+    print("="*80 + "\n")
+    
     logger.info("Searching for a move using MCTS...")
     logger.info(
         "Sampling {} battles at {}ms each".format(num_battles, search_time_per_battle)
     )
     logger.info(f"Time remaining: {battle.time_remaining}")
+    
     with ProcessPoolExecutor(max_workers=FoulPlayConfig.parallelism) as executor:
         futures = []
         for index, (b, chance) in enumerate(battles):
