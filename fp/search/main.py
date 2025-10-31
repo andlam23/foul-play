@@ -53,15 +53,24 @@ def select_move_from_mcts_results(mcts_results: list[(MctsResult, float, int)]) 
 
     final_policy = sorted(final_policy.items(), key=lambda x: x[1], reverse=True)
 
-    # Consider all moves that are close to the best move
-    highest_percentage = final_policy[0][1]
-    final_policy = [i for i in final_policy if i[1] >= highest_percentage * 0.75]
-    logger.info("Considered Choices:")
-    for i, policy in enumerate(final_policy):
-        logger.info(f"\t{round(policy[1] * 100, 3)}%: {policy[0]}")
+    # Print final aggregated results
+    print("-"*80)
+    print("AGGREGATED MOVE RANKINGS".center(80))
+    print("-"*80 + "\n")
+    
+    for rank, (move, score) in enumerate(final_policy[:5], 1):  # Show top 5
+        bar_length = int(score * 50)  # Scale to 50 chars max
+        bar = "█" * bar_length
+        print(f"{rank}. {move:<30} {score*100:>6.2f}% {bar}")
+    
+    print("\n" + "="*80)
+    print(f"SELECTED MOVE: {final_policy[0][0]}".center(80))
+    print("="*80 + "\n")
 
-    choice = random.choices(final_policy, weights=[p[1] for p in final_policy])[0]
-    return choice[0]
+    logger.info("Top Choice:")
+    logger.info(f"\t{round(final_policy[0][1] * 100, 3)}%: {final_policy[0][0]}")
+
+    return final_policy[0][0]
 
 
 def get_result_from_mcts(state: str, search_time_ms: int, index: int) -> MctsResult:
@@ -111,7 +120,7 @@ def search_time_num_battles_randombattles(battle):
 def search_time_num_battles_standard_battle(battle):
     opponent_active_num_moves = len(battle.opponent.active.moves)
 
-    default_num_battles_multiplier = 5
+    default_num_battles_multiplier = 1
     time_limit = ((FoulPlayConfig.search_time_ms / 1000) * default_num_battles_multiplier) * 2 + 15
 
     in_time_pressure = (
