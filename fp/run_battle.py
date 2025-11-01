@@ -410,7 +410,7 @@ async def start_battle(ps_websocket_client, pokemon_battle_type, team_dict):
             ps_websocket_client, pokemon_battle_type, team_dict
         )
 
-    await ps_websocket_client.send_message(battle.battle_tag, ["Patar an SpongeGar bawannagog. No pooca Squog. Squog tay taila foo."])
+    await ps_websocket_client.send_message(battle.battle_tag, [""])
     await ps_websocket_client.send_message(battle.battle_tag, ["/timer on"])
 
     return battle
@@ -427,7 +427,7 @@ async def pokemon_battle(ps_websocket_client, pokemon_battle_type, team_dict):
                 else None
             )
             logger.info("Winner: {}".format(winner))
-            await ps_websocket_client.send_message(battle.battle_tag, ["No Squog fwee fwee! SpongeGar fwee fwee!"])
+            await ps_websocket_client.send_message(battle.battle_tag, [""])
             if FoulPlayConfig.save_replay == SaveReplay.always or (
                 FoulPlayConfig.save_replay == SaveReplay.on_loss
                 and winner != FoulPlayConfig.username
