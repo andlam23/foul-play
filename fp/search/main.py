@@ -112,7 +112,7 @@ def search_time_num_battles_randombattles(battle):
 def search_time_num_battles_standard_battle(battle):
     opponent_active_num_moves = len(battle.opponent.active.moves)
 
-    default_num_battles_multiplier = 6
+    default_num_battles_multiplier = 2
     time_limit = ((FoulPlayConfig.search_time_ms / 1000) * default_num_battles_multiplier) * 2 + 15
 
     in_time_pressure = (

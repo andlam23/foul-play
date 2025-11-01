@@ -74,7 +74,7 @@ async def run_foul_play():
     # "gen9/ou/16", "gen9/ou/17", "gen9/ou/18", "gen9/ou/19"]
 
     team_pool = [
-    "gen9/ou/1", "gen9/ou/2", "gen9/ou/3", "gen9/ou/4", "gen9/ou/5", "gen9/ou/6"]
+    "gen9/ou/7"]
     
     while True:
         if FoulPlayConfig.requires_team():
