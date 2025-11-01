@@ -66,18 +66,20 @@ async def run_foul_play():
     team_file_name = "None"
     team_dict = None
     
-    # Define team pools
-    team_pool_a = ["gen9/ou/1"]
-    team_pool_b = ["gen9/ou/2", "gen9/ou/3", "gen9/ou/4", "gen9/ou/5"]
+    # Define the pool of teams to randomly choose from
+    # team_pool = [
+    # "gen9/ou/1", "gen9/ou/2", "gen9/ou/3", "gen9/ou/4", "gen9/ou/5",
+    # "gen9/ou/6", "gen9/ou/7", "gen9/ou/8", "gen9/ou/9", "gen9/ou/10",
+    # "gen9/ou/11", "gen9/ou/12", "gen9/ou/13", "gen9/ou/14", "gen9/ou/15",
+    # "gen9/ou/16", "gen9/ou/17", "gen9/ou/18", "gen9/ou/19"]
+
+    team_pool = [
+    "gen9/ou/1"]
     
     while True:
         if FoulPlayConfig.requires_team():
-            # 50/50 chance to pick from pool A or pool B
-            if random.random() < 0.5:
-                selected_team = random.choice(team_pool_a)
-            else:
-                selected_team = random.choice(team_pool_b)
-            
+            # Randomly select a team from the pool
+            selected_team = random.choice(team_pool)
             logger.info(f"Selected team: {selected_team}")
             
             team_packed, team_dict, team_file_name = load_team(selected_team)
