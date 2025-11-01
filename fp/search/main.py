@@ -16,7 +16,7 @@ from fp.search.poke_engine_helpers import battle_to_poke_engine_state
 logger = logging.getLogger(__name__)
 
 
-def select_move_from_mcts_results(mcts_results: list[(MctsResult, float, int)]) -> str:
+def select_move_from_mcts_results(mcts_results: list, battle=None) -> str:
     final_policy = {}
     
     # Print header
@@ -24,12 +24,17 @@ def select_move_from_mcts_results(mcts_results: list[(MctsResult, float, int)]) 
     print("MCTS SEARCH RESULTS".center(80))
     print("="*80 + "\n")
     
+    # Track which moves won each policy
+    policy_winners = []
+    
     # Print individual policy results
     for mcts_result, sample_chance, index in mcts_results:
         this_policy = max(mcts_result.side_one, key=lambda x: x.visits)
         visit_pct = round(100 * this_policy.visits / mcts_result.total_visits, 2)
         avg_score = round(this_policy.total_score / this_policy.visits, 3)
         sample_mult = round(sample_chance, 3)
+        
+        policy_winners.append(this_policy.move_choice)
         
         print(f"Policy #{index}:")
         print(f"  Move: {this_policy.move_choice}")
@@ -58,19 +63,103 @@ def select_move_from_mcts_results(mcts_results: list[(MctsResult, float, int)]) 
     print("AGGREGATED MOVE RANKINGS".center(80))
     print("-"*80 + "\n")
     
-    for rank, (move, score) in enumerate(final_policy[:5], 1):  # Show top 5
-        bar_length = int(score * 50)  # Scale to 50 chars max
+    for rank, (move, score) in enumerate(final_policy[:5], 1):
+        bar_length = int(score * 50)
         bar = "█" * bar_length
         print(f"{rank}. {move:<30} {score*100:>6.2f}% {bar}")
     
+    # Calculate confidence metrics
+    top_move, top_score = final_policy[0]
+    second_score = final_policy[1][1] if len(final_policy) > 1 else 0
+    score_gap = top_score - second_score
+    
+    # Count how many policies agreed on the top move
+    num_policies = len(policy_winners)
+    agreement_count = policy_winners.count(top_move)
+    agreement_pct = agreement_count / num_policies
+    
+    print("\n" + "-"*80)
+    print("CONFIDENCE ANALYSIS".center(80))
+    print("-"*80)
+    print(f"Top move score: {top_score*100:.2f}%")
+    print(f"Score gap to 2nd: {score_gap*100:.2f}%")
+    print(f"Policy agreement: {agreement_count}/{num_policies} ({agreement_pct*100:.1f}%)")
+    
+    # Determine if we should be deterministic or random
+    if top_score >= 0.70 and score_gap >= 0.30:
+        # VERY HIGH CONFIDENCE - Always pick it
+        confidence = "VERY HIGH"
+        temperature = 0.0
+        reason = "Dominant move across all scenarios"
+    elif top_score >= 0.65 and score_gap >= 0.25:
+        # HIGH CONFIDENCE - Mostly pick it
+        confidence = "HIGH"
+        temperature = 0.05
+        reason = "Strong consensus with clear advantage"
+    elif top_score >= 0.55 and score_gap >= 0.20:
+        # GOOD CONFIDENCE - Usually pick it
+        confidence = "GOOD"
+        temperature = 0.10
+        reason = "Clear favorite with meaningful gap"
+    elif top_score >= 0.50 and score_gap >= 0.15:
+        # MODERATE CONFIDENCE - Often pick it
+        confidence = "MODERATE"
+        temperature = 0.15
+        reason = "Preferred move but alternatives viable"
+    elif score_gap >= 0.10:
+        # LOW-MODERATE CONFIDENCE
+        confidence = "LOW-MODERATE"
+        temperature = 0.20
+        reason = "Slight preference, multiple good options"
+    else:
+        # LOW CONFIDENCE - Randomize heavily
+        confidence = "LOW"
+        temperature = 0.25
+        reason = "Close decision, no clear best move"
+    
+    print(f"Confidence level: {confidence}")
+    print(f"Reason: {reason}")
+    print(f"Temperature: {temperature}")
+    
+    # Select move based on confidence
+    if temperature == 0.0:
+        selected_move = top_move
+        print(f"Decision: DETERMINISTIC (always pick top move)")
+    else:
+        # Consider top moves within reasonable range
+        threshold = max(top_score * 0.6, second_score)  # At least 60% of top or better than 2nd
+        candidates = [(move, score) for move, score in final_policy 
+                      if score >= threshold]
+        
+        if len(candidates) == 1 or temperature < 0.08:
+            # Only one viable candidate or very low temperature
+            selected_move = top_move
+            print(f"Decision: DETERMINISTIC (temperature too low for randomization)")
+        else:
+            # Apply temperature and sample
+            scores = [score ** (1/temperature) for _, score in candidates]
+            total = sum(scores)
+            probs = [s/total for s in scores]
+            
+            choice_idx = random.choices(range(len(candidates)), weights=probs, k=1)[0]
+            selected_move = candidates[choice_idx][0]
+            
+            print(f"Decision: STOCHASTIC")
+            print(f"Candidates considered: {len(candidates)}")
+            print(f"Probabilities:")
+            for i, ((move, orig_score), prob) in enumerate(zip(candidates[:3], probs[:3])):
+                print(f"  {move}: {prob*100:.1f}% chance (original: {orig_score*100:.1f}%)")
+    
     print("\n" + "="*80)
-    print(f"SELECTED MOVE: {final_policy[0][0]}".center(80))
+    print(f"SELECTED MOVE: {selected_move}".center(80))
     print("="*80 + "\n")
 
     logger.info("Top Choice:")
     logger.info(f"\t{round(final_policy[0][1] * 100, 3)}%: {final_policy[0][0]}")
+    logger.info(f"Confidence: {confidence}, Temperature: {temperature}")
+    logger.info(f"Selected: {selected_move}")
 
-    return final_policy[0][0]
+    return selected_move
 
 
 def get_result_from_mcts(state: str, search_time_ms: int, index: int) -> MctsResult:
@@ -120,7 +209,7 @@ def search_time_num_battles_randombattles(battle):
 def search_time_num_battles_standard_battle(battle):
     opponent_active_num_moves = len(battle.opponent.active.moves)
 
-    default_num_battles_multiplier = 1
+    default_num_battles_multiplier = 5
     time_limit = ((FoulPlayConfig.search_time_ms / 1000) * default_num_battles_multiplier) * 2 + 15
 
     in_time_pressure = (
